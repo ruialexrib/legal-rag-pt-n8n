@@ -6,6 +6,10 @@ The workflow embeds each question with `bge-m3`, retrieves the five most relevan
 
 > This repository contains the orchestration layer. The document processing, embedding generation, Qdrant indexing, and retrieval evaluation pipeline is maintained in the companion [`legal-rag-pt`](https://github.com/ruialexrib/legal-rag-pt) repository.
 
+## Documentation
+
+The central [**`legal-rag-pt-doc`**](https://github.com/ruialexrib/legal-rag-pt-doc) repository provides the complete technical documentation for the project, including the overall architecture, theoretical background, environment setup, corpus construction methodology, retrieval evaluation, conversational application, and full technical report.
+
 ## Workflow
 
 ```text
