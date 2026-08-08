@@ -1,0 +1,170 @@
+{
+  "name": "legal-rag-pt-n8n",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"bge-m3\",\n  \"input\": \"{{ $('Chat Trigger').item.json.chatInput }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "316457d7-02f8-426a-8a46-e9e4f96fbe27",
+      "name": "Generate Embedding"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "262c8e6f-18d3-4cc6-ba90-b02dce2d5eb2",
+      "name": "Chat Trigger",
+      "webhookId": "57af6e3d-f644-4a1a-b247-bdaac365740a"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:6333/collections/crmp_bge_m3/points/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"query\": $json.embeddings[0],\n    \"limit\": 5,\n    \"with_payload\": true\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "111c2d10-f9d9-4bb0-bbd9-9da527f318df",
+      "name": "Qdrant Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const points = $json.result.points;\n\nconst context = points.map((point, index) => {\n    const p = point.payload;\n\n    return `\n[DOCUMENTO ${index + 1}]\n\nArtigo: ${p.article ?? \"\"}\nEpígrafe: ${p.article_title ?? \"\"}\nPágina inicial: ${p.page_start ?? \"\"}\nPágina final: ${p.page_end ?? \"\"}\nScore: ${point.score.toFixed(4)}\n\n${p.text ?? \"\"}\n`.trim();\n\n}).join(\"\\n\\n--------------------\\n\\n\");\n\nconst sources = points.map(point => ({\n    article: point.payload.article,\n    article_title: point.payload.article_title,\n    page_start: point.payload.page_start,\n    page_end: point.payload.page_end,\n    score: point.score\n}));\n\nreturn [{\n    json: {\n        question: $('Chat Trigger').item.json.chatInput,\n        context: context,\n        sources: sources\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "6927d756-1868-4d3a-aa20-0f2ea84598f1",
+      "name": "Build Context"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    model: \"hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M\",\n    stream: false,\n    messages: [\n      {\n        role: \"system\",\n        content: \"És um assistente especializado no Código Regulamentar do Município do Porto. Responde exclusivamente com base no contexto fornecido. Não utilizes conhecimento externo para preencher informação em falta. Se o contexto não contiver informação suficiente para responder, indica claramente que não foi encontrada informação suficiente no Código Regulamentar. Responde em português de Portugal. Identifica os artigos relevantes quando estes constarem do contexto.\"\n      },\n      {\n        role: \"user\",\n        content:\n          \"Pergunta:\\n\" +\n          $('Build Context').item.json.question +\n          \"\\n\\nContexto recuperado do Código Regulamentar:\\n\" +\n          $('Build Context').item.json.context\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        0
+      ],
+      "id": "6c22b17a-fbda-4d79-a4b1-60df46226021",
+      "name": "Generate Answer"
+    },
+    {
+      "parameters": {
+        "jsCode": "const answer = $json.message.content;\n\nconst sources = $('Build Context').item.json.sources;\n\nconst references = sources\n    .slice(0, 5)\n    .map((source, index) => {\n\n        let page;\n\n        if (\n            source.page_start &&\n            source.page_end &&\n            source.page_start !== source.page_end\n        ) {\n            page = `${source.page_start}-${source.page_end}`;\n        } else {\n            page = source.page_start ?? \"\";\n        }\n\n        return `${index + 1}. Artigo ${source.article} — ${source.article_title} (p. ${page})`;\n    })\n    .join(\"\\n\");\n\nreturn [{\n    json: {\n        output: `${answer}\n\nFontes consultadas:\n${references}`\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "18332bd4-4b9f-4011-829e-42f8441e956d",
+      "name": "Format Response"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Search": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Answer": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a7d2e8c8-b1db-4a63-bd72-ec112305da68",
+  "meta": {
+    "instanceId": "761b66f3e87b3be30755675276b1868f5466dcfa96f7fa65dc224ffa13b79922"
+  },
+  "nodeGroups": [],
+  "id": "sjdFMs5ael2cGNAE",
+  "tags": []
+}
