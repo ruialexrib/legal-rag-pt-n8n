@@ -1,242 +1,177 @@
+<div align="center">
+
 # Legal RAG PT — n8n
 
-An n8n workflow for asking natural-language questions about the **Porto Municipal Regulatory Code (CRMP)** using a fully local Retrieval-Augmented Generation (RAG) pipeline.
+### Fully local conversational RAG workflow for Portuguese legal documents
 
-The workflow embeds each question with `bge-m3`, retrieves the five most relevant legal chunks from Qdrant, sends the grounded context to a Portuguese legal language model through Ollama, and returns an answer with article and page references.
+[![n8n](https://img.shields.io/badge/n8n-Workflow%20Automation-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20Models-black)](https://ollama.com/)
+[![Qdrant](https://img.shields.io/badge/Qdrant-Vector%20Database-DC244C)](https://qdrant.tech/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> This repository contains the orchestration layer. The document processing, embedding generation, Qdrant indexing, and retrieval evaluation pipeline is maintained in the companion [`legal-rag-pt`](https://github.com/ruialexrib/legal-rag-pt) repository.
+**n8n · RAG · bge-m3 · Qdrant · AMALIA-9B · Ollama**
 
-## Documentation
+</div>
 
-The central [**`legal-rag-pt-doc`**](https://github.com/ruialexrib/legal-rag-pt-doc) repository provides the complete technical documentation for the project, including the overall architecture, theoretical background, environment setup, corpus construction methodology, retrieval evaluation, conversational application, and full technical report.
+---
 
-## Workflow
+## About
+
+This project provides the conversational orchestration layer for **Legal RAG PT**, a fully local Retrieval-Augmented Generation system for natural-language consultation of the **Porto Municipal Regulatory Code (CRMP)**.
+
+The workflow embeds each question with `bge-m3`, retrieves the five most relevant legal chunks from Qdrant, constructs grounded context, sends it to AMALIA-9B through Ollama, and returns an answer in European Portuguese with article and page references.
+
+The upstream corpus processing and retrieval evaluation pipeline is maintained in [`legal-rag-pt`](https://github.com/ruialexrib/legal-rag-pt), while the complete technical documentation is available in [`legal-rag-pt-doc`](https://github.com/ruialexrib/legal-rag-pt-doc).
+
+---
+
+## Architecture
 
 ```text
-User question
-    ↓
+User Question
+     │
+     ▼
 n8n Chat Trigger
-    ↓
-Query embedding — bge-m3 via Ollama
-    ↓
-Top-5 vector search — Qdrant
-    ↓
-Context and source construction
-    ↓
-Grounded answer — AMALIA via Ollama
-    ↓
-Answer with article and page references
+     │
+     ▼
+bge-m3 Query Embedding ──► Ollama
+     │
+     ▼
+Qdrant Top-5 Vector Search
+     │
+     ▼
+Context + Source Construction
+     │
+     ▼
+AMALIA-9B ──► Ollama
+     │
+     ▼
+Grounded Answer
+     │
+     ▼
+Article + Page References
 ```
 
-## Components
+---
 
-- [n8n](https://n8n.io/) for workflow orchestration and the chat interface
-- [Ollama](https://ollama.com/) for local embedding and answer-generation models
-- [Qdrant](https://qdrant.tech/) for semantic vector search
-- `bge-m3` as the embedding model
-- `hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M` as the answer-generation model
-- Docker Compose for running n8n
+## Technology Stack
 
-## Repository structure
+| Technology | Purpose |
+| --- | --- |
+| **n8n** | Workflow orchestration and chat interface |
+| **bge-m3** | Query embeddings |
+| **Qdrant** | Semantic vector retrieval |
+| **AMALIA-9B** | Grounded answer generation |
+| **Ollama** | Local model execution |
+| **Docker Compose** | Local n8n runtime |
+
+---
+
+## Repository Structure
 
 ```text
 legal-rag-pt-n8n/
 ├── workflows/
-│   └── legal-rag-pt-n8n.json   # Exported n8n workflow
-├── docker-compose.yml           # Local n8n service
+│   └── legal-rag-pt-n8n.json
+├── docker-compose.yml
 └── README.md
 ```
 
-## Prerequisites
+---
+
+## Requirements
 
 - Docker with Docker Compose
-- Ollama running on the host machine
-- Qdrant running on the host machine
-- A populated Qdrant collection named `crmp_bge_m3`
-- The following Ollama models:
-  - `bge-m3`
-  - `hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M`
+- Ollama running on the host
+- Qdrant running on the host
+- Populated `crmp_bge_m3` collection
+- `bge-m3`
+- `hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M`
 
-The `crmp_bge_m3` collection can be created and populated by running notebooks `01` through `06` from the companion `legal-rag-pt` project.
+The Qdrant collection can be created by running notebooks `01` through `06` from the companion `legal-rag-pt` project.
 
-## Setup
+---
 
-### 1. Prepare Ollama
+## Quick Start
 
-Download the embedding and answer-generation models:
+Install the required Ollama models:
 
 ```bash
 ollama pull bge-m3
 ollama pull hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M
 ```
 
-Confirm that Ollama is available on port `11434`:
-
-```bash
-ollama list
-```
-
-### 2. Prepare Qdrant
-
-Start Qdrant and ensure that the `crmp_bge_m3` collection has been populated with the CRMP vectors and payloads.
-
-The workflow expects Qdrant at:
-
-```text
-http://host.docker.internal:6333
-```
-
-The indexed payloads must include these fields:
-
-- `article`
-- `article_title`
-- `page_start`
-- `page_end`
-- `text`
-
-### 3. Start n8n
-
-From the repository root, run:
+Start n8n:
 
 ```bash
 docker compose up -d
 ```
 
-Open n8n at [http://localhost:5678](http://localhost:5678).
+Open n8n at `http://localhost:5678`, import `workflows/legal-rag-pt-n8n.json`, review the node configuration, and activate the workflow.
 
-The Docker volume `n8n_data` persists workflows, credentials, and instance settings across container restarts.
+No external API credentials are required for the default setup because Ollama and Qdrant are accessed as local HTTP services.
 
-### 4. Import the workflow
+---
 
-1. Open the n8n interface.
-2. Create or select a project.
-3. Choose **Import from File**.
-4. Select `workflows/legal-rag-pt-n8n.json`.
-5. Review the node settings and save the workflow.
-6. Activate the workflow if it is not already active.
-
-The exported workflow does not require external API credentials because Ollama and Qdrant are accessed as local HTTP services.
-
-## Usage
-
-Open the workflow and use its chat interface to submit a question in Portuguese, for example:
-
-```text
-Que documentos são necessários para apresentar um requerimento?
-```
-
-The response contains:
-
-- An answer in European Portuguese
-- Relevant CRMP article references
-- Article titles when available
-- Source page numbers
-- A list of the five retrieved sources
-
-## Node reference
+## Workflow Nodes
 
 | Node | Purpose |
-|---|---|
-| `Chat Trigger` | Receives the user's question through the n8n chat interface. |
-| `Generate Embedding` | Sends the question to Ollama and generates a `bge-m3` vector. |
-| `Qdrant Search` | Retrieves the five closest vectors from `crmp_bge_m3`, including their payloads. |
-| `Build Context` | Formats retrieved chunks and preserves source metadata for the final response. |
-| `Generate Answer` | Prompts AMALIA to answer exclusively from the retrieved context. |
-| `Format Response` | Appends article, title, and page references to the generated answer. |
+| --- | --- |
+| `Chat Trigger` | Receives the user's question |
+| `Generate Embedding` | Generates a `bge-m3` query vector through Ollama |
+| `Qdrant Search` | Retrieves the five closest legal chunks |
+| `Build Context` | Constructs grounded context and preserves source metadata |
+| `Generate Answer` | Generates an answer exclusively from retrieved context |
+| `Format Response` | Appends article, title, and page references |
 
-## Current configuration
+---
+
+## Current Configuration
 
 | Setting | Value |
-|---|---|
-| n8n URL | `http://localhost:5678` |
-| Ollama URL from n8n | `http://host.docker.internal:11434` |
-| Qdrant URL from n8n | `http://host.docker.internal:6333` |
+| --- | --- |
+| n8n | `localhost:5678` |
+| Ollama from n8n | `host.docker.internal:11434` |
+| Qdrant from n8n | `host.docker.internal:6333` |
 | Embedding model | `bge-m3` |
 | Embedding dimensions | `1024` |
-| Qdrant collection | `crmp_bge_m3` |
+| Collection | `crmp_bge_m3` |
 | Retrieval limit | `5` chunks |
 | Answer model | `hf.co/ruialexrib/AMALIA-9B-0626-SFT-GGUF:Q3_K_M` |
-| Answer language | European Portuguese |
+| Language | European Portuguese |
 | Time zone | `Europe/Lisbon` |
 
-## Grounding behavior
+---
 
-The system prompt instructs the answer model to:
+## Grounding
 
-- Use only the retrieved CRMP context
-- Avoid filling gaps with external knowledge
-- State clearly when the retrieved context is insufficient
-- Answer in European Portuguese
-- Identify relevant legal articles when available
+The answer model is instructed to use only the retrieved CRMP context, avoid filling gaps with external knowledge, state when context is insufficient, answer in European Portuguese, and identify relevant legal articles when available.
 
-These instructions reduce unsupported answers but do not guarantee factual accuracy. Outputs should always be checked against the official regulatory text.
+These constraints reduce unsupported answers but do not guarantee factual accuracy. Outputs should always be checked against the official regulatory text.
 
-## Networking notes
+---
 
-The n8n container accesses Ollama and Qdrant through `host.docker.internal`. The Docker Compose configuration maps this hostname to the host gateway, including on supported Linux installations.
+## Security & Limitations
 
-If Ollama or Qdrant runs on another machine or inside a different Docker network, update the URLs in these workflow nodes:
+The supplied chat trigger is public by default and the workflow is designed primarily for a trusted local environment. Before external deployment, add authentication, HTTPS, access controls, secure n8n configuration, and appropriate logging policies.
 
-- `Generate Embedding`
-- `Qdrant Search`
-- `Generate Answer`
+The current implementation is tailored to the CRMP payload schema, uses vector-only retrieval, embeds service configuration directly in the workflow, and does not include automated workflow tests.
 
-## Security
+---
 
-The imported `Chat Trigger` is configured as public. Before exposing n8n outside a trusted local environment:
+## Future Work
 
-- Add appropriate authentication and access controls
-- Review n8n's deployment and encryption settings
-- Avoid exposing Ollama or Qdrant directly to the public internet
-- Configure HTTPS through a trusted reverse proxy
-- Review workflow execution logs for potentially sensitive questions or retrieved text
+Planned improvements include environment-based configuration, hybrid retrieval, reranking, distinct-article handling, confidence-aware responses, automated workflow tests, and production-ready authentication.
 
-## Troubleshooting
-
-### n8n cannot connect to Ollama
-
-- Confirm that Ollama is running on the host.
-- Verify that port `11434` is reachable from the container.
-- Confirm that both required models appear in `ollama list`.
-
-### Qdrant returns a collection-not-found error
-
-- Confirm that Qdrant is running on port `6333`.
-- Run the indexing pipeline from the companion `legal-rag-pt` repository.
-- Verify that the collection is named exactly `crmp_bge_m3`.
-
-### Qdrant reports a vector-size mismatch
-
-The query and document embeddings must use the same model. Rebuild the collection or update the workflow so both use `bge-m3` with 1,024-dimensional vectors.
-
-### The answer lacks useful context
-
-- Inspect the output of `Qdrant Search` and verify the retrieved payloads.
-- Confirm that the collection contains the expected legal text and metadata.
-- Consider adjusting the retrieval limit or improving the upstream chunking and evaluation pipeline.
-
-## Limitations
-
-- The workflow is tailored to the CRMP collection and payload schema.
-- Retrieval is vector-only; hybrid search and reranking are not implemented.
-- Service URLs, collection names, and models are embedded directly in the workflow.
-- The answer model can still produce incorrect or incomplete output.
-- The chat trigger is public by default.
-- No automated workflow tests are currently included.
-
-## Roadmap
-
-- Move service URLs and model names into environment-based configuration.
-- Add hybrid retrieval and reranking.
-- Return only distinct articles when several retrieved chunks belong to the same article.
-- Add confidence-aware handling for low-scoring retrieval results.
-- Add automated workflow tests and deployment checks.
-- Add authentication and production-ready n8n configuration.
+---
 
 ## Disclaimer
 
 This project is intended for experimental and educational purposes. Its output does not constitute legal advice and must be verified against the applicable official sources.
 
+---
+
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the [MIT License](LICENSE).
